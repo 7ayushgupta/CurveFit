@@ -7,11 +7,12 @@ from curvefit.core.functions import *
 
 
 def sizes_to_indices(sizes):
-    """[begin_markdown sizes_to_indices]
+    """{begin_markdown sizes_to_indices}
+    {spell_markdown subvector subvectors xam}
     # Converting sizes to corresponding indices.
 
     ## Syntax
-    `indices = sizes_to_indices(sizes)`
+    `indices = curvefit.sizes_to_indices(sizes)`
 
     ## sizes
     The argument `sizes` is a one dimensional `numpy.array` of integers sizes.
@@ -28,7 +29,7 @@ def sizes_to_indices(sizes):
     ## Example
     [sizes_to_indices_xam](sizes_to_indices_xam.md)
 
-    [end_markdown sizes_to_indices]"""
+    {end_markdown sizes_to_indices}"""
     indices = []
     a = 0
     b = 0
@@ -55,8 +56,9 @@ def get_obs_se(df, col_t, func=lambda x: 1 / (1 + x)):
     data['obs_se'] = data[col_t].apply(func)
     return data
 
+
 # TODO: replace with the data translator?
-def get_derivative_of_column_in_log_space(df, col_obs, col_t, col_grp):
+def get_derivative_of_column_in_ln_space(df, col_obs, col_t, col_grp):
     """
     Adds a new column for the derivative of col_obs.
     Col_obs needs to be in log space. # TODO: Change this later to allow for other spaces.
@@ -122,7 +124,6 @@ def local_smoother(df,
 
     col_mean = '_'.join([col_val, 'mean'])
     col_std = '_'.join([col_val, 'std'])
-
 
     # group by the axis
     df = df.groupby(col_axis, as_index=False).agg({
@@ -191,6 +192,7 @@ def cumulative_derivative(array):
     arr = array.copy()
     return arr - np.insert(arr[:, :-1], 0, 0.0, axis=1)
 
+
 # TODO: change to use the data translator
 def convex_combination(t, pred1, pred2, pred_fun,
                        start_day=2, end_day=20):
@@ -222,24 +224,24 @@ def convex_combination(t, pred1, pred2, pred_fun,
     b = -start_day * a
     lam = np.maximum(0.0, np.minimum(1.0, a * t + b))
 
-    if pred_fun.__name__ == 'log_erf':
+    if pred_fun.__name__ == 'ln_gaussian_cdf':
         pred1 = np.exp(pred1)
         pred2 = np.exp(pred2)
         pred1_tmp = cumulative_derivative(pred1)
         pred2_tmp = cumulative_derivative(pred2)
         pred_tmp = lam * pred1_tmp + (1.0 - lam) * pred2_tmp
         pred = np.log(np.cumsum(pred_tmp, axis=1))
-    elif pred_fun.__name__ == 'erf':
+    elif pred_fun.__name__ == 'gaussian_cdf':
         pred1_tmp = cumulative_derivative(pred1)
         pred2_tmp = cumulative_derivative(pred2)
         pred_tmp = lam * pred1_tmp + (1.0 - lam) * pred2_tmp
         pred = np.cumsum(pred_tmp, axis=1)
-    elif pred_fun.__name__ == 'log_derf':
+    elif pred_fun.__name__ == 'ln_gaussian_pdf':
         pred1_tmp = np.exp(pred1)
         pred2_tmp = np.exp(pred2)
         pred_tmp = lam * pred1_tmp + (1.0 - lam) * pred2_tmp
         pred = np.log(pred_tmp)
-    elif pred_fun.__name__ == 'derf':
+    elif pred_fun.__name__ == 'gaussian_pdf':
         pred = lam * pred1 + (1.0 - lam) * pred2
     else:
         pred = None
@@ -249,6 +251,7 @@ def convex_combination(t, pred1, pred2, pred_fun,
         pred = pred.ravel()
 
     return pred
+
 
 # TODO: use data_translator
 def model_average(pred1, pred2, w1, w2, pred_fun):
@@ -265,30 +268,31 @@ def model_average(pred1, pred2, w1, w2, pred_fun):
     assert callable(pred_fun)
     assert w1 + w2 == 1
 
-    if pred_fun.__name__ == 'log_erf':
+    if pred_fun.__name__ == 'ln_gaussian_cdf':
         pred1 = np.exp(pred1)
         pred2 = np.exp(pred2)
         pred1_tmp = cumulative_derivative(pred1)
         pred2_tmp = cumulative_derivative(pred2)
         pred_tmp = w1 * pred1_tmp + w2 * pred2_tmp
         pred = np.log(np.cumsum(pred_tmp, axis=1))
-    elif pred_fun.__name__ == 'erf':
+    elif pred_fun.__name__ == 'gaussian_cdf':
         pred1_tmp = cumulative_derivative(pred1)
         pred2_tmp = cumulative_derivative(pred2)
         pred_tmp = w1 * pred1_tmp + w2 * pred2_tmp
         pred = np.cumsum(pred_tmp, axis=1)
-    elif pred_fun.__name__ == 'log_derf':
+    elif pred_fun.__name__ == 'ln_gaussian_pdf':
         pred1_tmp = np.exp(pred1)
         pred2_tmp = np.exp(pred2)
         pred_tmp = w1 * pred1_tmp + w2 * pred2_tmp
         pred = np.log(pred_tmp)
-    elif pred_fun.__name__ == 'derf':
+    elif pred_fun.__name__ == 'gaussian_pdf':
         pred = w1 * pred1 + w2 * pred2
     else:
         pred = None
         RuntimeError('Unknown prediction functional form')
 
     return pred
+
 
 # TODO: move the test from pv to here and test it not use the old code.
 def condense_residual_matrix(matrix, sequential_diffs, data_density):
@@ -339,7 +343,7 @@ def data_translator(data, input_space, output_space,
     if callable(output_space):
         output_space = output_space.__name__
 
-    total_space = ['erf', 'derf', 'log_erf', 'log_derf']
+    total_space = ['gaussian_cdf', 'gaussian_pdf', 'ln_gaussian_cdf', 'ln_gaussian_pdf']
 
     assert input_space in total_space
     assert output_space in total_space
@@ -351,16 +355,16 @@ def data_translator(data, input_space, output_space,
         data = data[None, :]
 
     # thresholding the data in the linear space
-    if input_space in ['erf', 'derf']:
+    if input_space in ['gaussian_cdf', 'gaussian_pdf']:
         data = np.maximum(threshold, data)
 
     if input_space == output_space:
         output_data = data.copy()
-    elif output_space == 'log_' + input_space:
+    elif output_space == 'ln_' + input_space:
         output_data = np.log(data)
-    elif input_space == 'log_' + output_space:
+    elif input_space == 'ln_' + output_space:
         output_data = np.exp(data)
-    elif 'derf' in input_space:
+    elif 'gaussian_pdf' in input_space:
         if 'log' in input_space:
             data = np.exp(data)
         output_data = np.cumsum(data, axis=1)
@@ -434,8 +438,8 @@ def compute_starting_params(fe_dict):
     return fe_init, re_init
 
 
-def solve_p_from_dderf(alpha, beta, slopes, slope_at=14):
-    """Compute p from alpha, beta and slopes of derf at given point.
+def solve_p_from_dgaussian_pdf(alpha, beta, slopes, slope_at=14):
+    """Compute p from alpha, beta and slopes of gaussian_pdf at given point.
 
     Args:
         alpha (np.ndarray | float):
@@ -528,10 +532,10 @@ def truncate_draws(t, draws, draw_space, last_day, last_obs, last_obs_space):
     if callable(last_obs_space):
         last_obs_space = last_obs_space.__name__
 
-    assert draw_space in ['erf', 'derf', 'log_erf', 'log_derf']
-    assert last_obs_space in ['erf', 'derf', 'log_erf', 'log_derf']
+    assert draw_space in ['gaussian_cdf', 'gaussian_pdf', 'ln_gaussian_cdf', 'ln_gaussian_pdf']
+    assert last_obs_space in ['gaussian_cdf', 'gaussian_pdf', 'ln_gaussian_cdf', 'ln_gaussian_pdf']
 
-    if last_obs_space == 'erf':
+    if last_obs_space == 'gaussian_cdf':
         assert last_obs >= 0.0
     else:
         last_obs = np.exp(last_obs)
@@ -539,21 +543,21 @@ def truncate_draws(t, draws, draw_space, last_day, last_obs, last_obs_space):
     last_day = int(np.round(last_day))
     assert t.min() <= last_day < t.max()
 
-    derf_draws = data_translator(draws, draw_space, 'derf')
-    derf_draws = derf_draws[:, last_day + 1:]
+    gaussian_pdf_draws = data_translator(draws, draw_space, 'gaussian_pdf')
+    gaussian_pdf_draws = gaussian_pdf_draws[:, last_day + 1:]
 
-    if draw_space == 'derf':
-        final_draws = derf_draws
-    elif draw_space == 'log_derf':
-        final_draws = data_translator(derf_draws, 'derf', 'log_derf')
-    elif draw_space == 'erf':
-        assert last_obs_space in ['erf', 'log_erf']
-        last_obs = last_obs if last_obs_space == 'erf' else np.exp(last_obs)
-        final_draws = data_translator(derf_draws, 'derf', 'erf') + last_obs
+    if draw_space == 'gaussian_pdf':
+        final_draws = gaussian_pdf_draws
+    elif draw_space == 'ln_gaussian_pdf':
+        final_draws = data_translator(gaussian_pdf_draws, 'gaussian_pdf', 'ln_gaussian_pdf')
+    elif draw_space == 'gaussian_cdf':
+        assert last_obs_space in ['gaussian_cdf', 'ln_gaussian_cdf']
+        last_obs = last_obs if last_obs_space == 'gaussian_cdf' else np.exp(last_obs)
+        final_draws = data_translator(gaussian_pdf_draws, 'gaussian_pdf', 'gaussian_cdf') + last_obs
     else:
-        assert last_obs_space in ['erf', 'log_erf']
-        last_obs = last_obs if last_obs_space == 'erf' else np.exp(last_obs)
-        final_draws = data_translator(derf_draws, 'derf', 'erf') + last_obs
+        assert last_obs_space in ['gaussian_cdf', 'ln_gaussian_cdf']
+        last_obs = last_obs if last_obs_space == 'gaussian_cdf' else np.exp(last_obs)
+        final_draws = data_translator(gaussian_pdf_draws, 'gaussian_pdf', 'gaussian_cdf') + last_obs
         final_draws = np.log(final_draws)
 
     if draw_ndim == 1:
@@ -705,17 +709,26 @@ def smooth_mat(mat, radius=None):
 
 
 def split_by_group(df, col_group):
-    """Split the data frame by the group definition.
+    """{begin_markdown split_by_group}
+    {spell_markdown dataframe}
+    # Split the dataframe by the group definition.
 
-    Args:
-        df (pd.DataFrame): Provided data frame.
-        col_group (str): Column name of group definition.
+    ## Syntax
+    `data = split_by_group(df, col_group)`
 
-    Returns:
-        dict{str, pd.DataFrame}:
-            Dictionary with key as the group definition and value as the
-            corresponding data frame.
-    """
+    ## df
+    Provided dataframe.
+
+    ## col_group
+    Column name in the dataframe contains group definition.
+
+    ## data
+    Dictionary with key as the group definition and value as the
+    corresponding dataframe.
+
+    ## Example
+
+    {end_markdown split_by_group}"""
     assert col_group in df
     data = {
         group: df[df[col_group] == group].reset_index(drop=True)
@@ -744,9 +757,9 @@ def filter_death_rate(df, col_t, col_death_rate):
     df = df.drop(drop_idx).reset_index(drop=True)
     return df
 
+
 def filter_death_rate_by_group(df, col_group, col_t, col_death_rate):
     """Filter cumulative death rate within each group.
-
     Args:
         df (pd.DataFrame): Provided data frame.
         col_group (str): Column name of group definition.
@@ -764,73 +777,154 @@ def filter_death_rate_by_group(df, col_group, col_t, col_death_rate):
 
 
 def create_potential_peaked_groups(df, col_group, col_t, col_death_rate,
-                                   spline_knots=np.array([0.0, 100.0]),
-                                   spline_degree=2,
-                                   tol_der=1e-2,
                                    tol_num_obs=20,
-                                   return_spline_fit=False):
+                                   tol_after_peak=3,
+                                   return_poly_fit=False):
     """Create potential peaked groups.
+    Args:
+        df (pd.DataFrame): Provided data frame.
+        col_group (str): Column name of group definition.
+        col_t (str): Column name of the independent variable.
+        col_death_rate (str): Name for column that contains the death rate.
+        tol_num_obs (int, optional):
+            Only the ones with number of observation above or equal to this
+            threshold will be considered as the potential peaked group.
+        tol_after_peak (int | float, optional):
+            Pick the ones already pass peaked day for this amount of time.
+        return_poly_fit (bool, optional):
+            If True, return the spline fits as well.
+    Returns:
+        list | tuple(list, dict):
+            List of potential peaked groups or with the spline fit as well.
+    """
+    data = process_input(df, col_group, col_t, col_death_rate, return_df=False)
+
+    poly_fit = {}
+    for location in data.keys():
+        df = data[location]
+        t = df['days']
+        y = df['ln asddr']
+
+        c = np.polyfit(t, y, 2)
+        poly_fit.update({
+            location: deepcopy(c)
+        })
+
+    potential_groups = []
+    for i, (location, df) in enumerate(data.items()):
+        c = poly_fit[location]
+        last_day = df['days'].max()
+        num_obs = df.shape[0]
+        b = np.inf if np.isclose(c[0], 0.0) else -0.5*c[1]/c[0]
+        if c[0] < 0.0 <= b and num_obs >= tol_num_obs and last_day - b >= tol_after_peak:
+            potential_groups.append(location)
+
+    if return_poly_fit:
+        return potential_groups, poly_fit
+    else:
+        return potential_groups
+
+
+def process_input(df, col_group, col_t, col_death_rate, return_df=True):
+    """
+    Trim filter and adding extra information to the data frame.
 
     Args:
         df (pd.DataFrame): Provided data frame.
         col_group (str): Column name of group definition.
         col_t (str): Column name of the independent variable.
         col_death_rate (str): Name for column that contains the death rate.
-        spline_konts (np.array, optional):
-            Knots for the spline fits.
-        spline_degree (int, optional):
-            Degree for the spline fits.
-        tol_der (float, optional):
-            Only the ones with minimum derivative below this threshold will be
-            considered as the potential peaked group.
-        tol_num_obs (int, optional):
-            Only the ones with number of observation above or equal to this
-            threshold will be considered as the potential peaked group.
-        return_spline_fit (bool, optional):
-            If True, return the spline fits as well.
+        return_df (bool, optional):
+            If True return the combined data frame, otherwise return the
+            splitted dictionary.
 
     Returns:
-        list | tuple(list, dict):
-            List of potential peaked groups or with the spline fit as well.
+        pd.DataFrame: processed data frame.
     """
-    data = split_by_group(
-        filter_death_rate_by_group(df, col_group, col_t, col_death_rate),
-        col_group)
+    assert col_group in df
+    assert col_t in df
+    assert col_death_rate in df
 
-    for location in data.keys():
-        df_sub = data[location]
-        df_sub['daily death rate'] = df_sub['death rate'].values - \
-            np.insert(df_sub['death rate'].values[:-1], 0, 0.0)
-        df_sub['ln daily death rate'] = np.log(df_sub['daily death rate'])
+    # trim down the data frame
+    df = df[[col_group, col_t, col_death_rate]].reset_index(drop=True)
+    df.sort_values([col_group, col_t], inplace=True)
+    df.columns = ['location', 'days', 'ascdr']
 
-    spline_fit = {}
-    for location in data.keys():
-        df = data[location]
-        t = df['days']
-        y = df['ln daily death rate']
+    # check and filter and add more information
+    data = split_by_group(df, col_group='location')
+    for location, df_location in data.items():
+        assert df_location.shape[0] == df_location['days'].unique().size
+        df_location = filter_death_rate(df_location,
+                                        col_t='days',
+                                        col_death_rate='ascdr')
+        df_location['ln ascdr'] = np.log(df_location['ascdr'])
+        df_location['asddr'] = df_location['ascdr'].values - \
+            np.insert(df_location['ascdr'].values[:-1], 0, 0.0)
+        df_location['ln asddr'] = np.log(df_location['asddr'])
 
-        spline = XSpline(spline_knots, spline_degree)
-        X = spline.design_mat(t)
-        c, *_ = np.linalg.lstsq(X.T.dot(X), X.T.dot(y), rcond=None)
-        spline_fit.update({
-            location: (deepcopy(spline), deepcopy(c))
+        data.update({
+            location: df_location.copy()
         })
 
-    potential_groups = []
-    for i, (location, df) in enumerate(data.items()):
-        spline, c = spline_fit[location]
-        t = np.linspace(df['days'].min(), df['days'].max(), 100)
-        dX = spline.design_dmat(t, 1)
-        ddX = spline.design_dmat(t, 2)
-
-        dy = dX.dot(c)
-        ddy = ddX.dot(c)
-        if np.abs(dy).min() < tol_der and \
-                np.all(ddy <= 0.0) and \
-                df.shape[0] >= tol_num_obs:
-            potential_groups.append(location)
-
-    if return_spline_fit:
-        return potential_groups, spline_fit
+    if return_df:
+        return pd.concat(list(data.values()))
     else:
-        return potential_groups
+        return data
+
+
+def peak_score(t, y, c, num_obs,
+               tol_num_obs=5,
+               weight_num_obs=1.0,
+               min_score=0.1,
+               max_score=1.0,
+               lslope=0.1,
+               rslope=0.1):
+    """Compute the peak score of give prediction.
+
+    Args:
+        t (numpy.ndarray): Time array.
+        y (numpy.ndarray): Prediction in the daily death space.
+        c (numpy.ndarray): The coefficient of the polyfit.
+        num_obs (int): Number of the observations.
+        tol_num_obs (int, optional):
+            If num_obs lower than this value, then assign equal weights.
+        weight_num_obs (float, optional):
+            Weight for importance of the number of observations.
+        min_score (float, optional): Minimum score, required to be positive.
+        max_score (float, optional):
+            Maximum score, required greater than min_score.
+        lslope (float, optional): Slope for underestimate the peak time.
+        rslope (float, optional): Slope for overestimate the peak time.
+
+    Returns:
+        float: The score.
+    """
+    assert isinstance(t, np.ndarray)
+    assert isinstance(y, np.ndarray)
+    assert isinstance(c, np.ndarray)
+    assert t.size == y.size
+    assert c.size == 3
+    assert num_obs >= 1.0
+    assert tol_num_obs >= 0.0
+    assert 0.0 <= weight_num_obs <= 1.0
+    assert min_score >= 0.0
+    assert max_score >= min_score
+    assert lslope >= 0.0
+    assert rslope >= 0.0
+
+    b = -0.5*c[1]/c[0]
+    beta = t[np.argmax(y)]
+    if np.isclose(c[0], 0.0) or c[0] > 0.0 or num_obs <= tol_num_obs or b <= 0.0:
+        return 0.5*(min_score + max_score)
+
+    if min_score == max_score:
+        return min_score
+
+    height = max_score - min_score
+
+    score = min_score + height*(1.0 - weight_num_obs/num_obs)*np.exp(-(
+        lslope*min(beta - b, 0.0)**2 +
+        rslope*max(beta - b, 0.0)**2
+    ))
+
+    return score

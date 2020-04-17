@@ -1,7 +1,13 @@
-'''[begin_markdown sizes_to_indices_xam]
+#! /usr/bin/env python3
+'''{begin_markdown sizes_to_indices_xam}
+{spell_markdown utils}
 
 # Example and Test of sizes_to_indices
 
+## Function Documentation
+[size_to_indices](sizes_to_indices.md)
+
+## Example Source Code
 ```python'''
 import sys
 import numpy
@@ -17,4 +23,4 @@ assert all( indices[2] == numpy.array([6, 7, 8]) )
 print('sizes_to_indices.py: OK')
 sys.exit(0)
 '''```
-[end_markdown sizes_to_indices_xam]'''
+{end_markdown sizes_to_indices_xam}'''
