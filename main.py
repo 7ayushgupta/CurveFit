@@ -1,4 +1,3 @@
-import copy
 import curvefit
 import pandas as pd
 import pickle
@@ -13,7 +12,6 @@ def return_se_as_f_of_t(t):
     return np.random.normal(scale=0.1)
 
 dataset = pd.read_csv('dataset_for_CurveFit.csv')
-dataset = dataset[(dataset["State/UnionTerritory"] == "Kerala") | (dataset["State/UnionTerritory"] == "Maharashtra") | (dataset["State/UnionTerritory"] == "Hubei")]
 dataset = dataset.reset_index(drop=True)
 dataset = dataset.sort_values(by=["DateI"])
 dataset["SE"] = np.random.normal(scale=0.1, size=dataset.shape[0])

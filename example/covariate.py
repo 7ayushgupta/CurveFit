@@ -193,6 +193,9 @@ re_bounds = [ [0.0, 0.0] ] * num_fe
 #
 curve_model.fit_params(fe_init, re_init, fe_bounds, re_bounds)
 fe_estimate = curve_model.result.x[:num_fe]
+print(fe_estimate)
+
+print(curve_model.params)
 # -------------------------------------------------------------------------
 # check result
 for i in range(num_fe) :
